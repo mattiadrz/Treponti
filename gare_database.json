@@ -1,0 +1,100 @@
+{
+  "2024": [
+    {
+      "nome": "Sacchi",
+      "categoria": "Elementari",
+      "sesso": "F",
+      "tempo": "00:00:10"
+    },
+    {
+      "nome": "Sacchi",
+      "categoria": "Elementari",
+      "sesso": "M",
+      "tempo": "00:00:09"
+    },
+    {
+      "nome": "Sacchi",
+      "categoria": "Medie",
+      "sesso": "F",
+      "tempo": "00:00:12"
+    },
+    {
+      "nome": "Sacchi",
+      "categoria": "Medie",
+      "sesso": "M",
+      "tempo": "00:00:11"
+    },
+    {
+      "nome": "Barattoli",
+      "categoria": "Elementari",
+      "sesso": "F",
+      "tempo": "00:00:09"
+    },
+    {
+      "nome": "Barattoli",
+      "categoria": "Elementari",
+      "sesso": "M",
+      "tempo": "00:00:08"
+    },
+    {
+      "nome": "Triciclo",
+      "categoria": "Elementari",
+      "sesso": "F",
+      "tempo": "00:00:14"
+    },
+    {
+      "nome": "Triciclo",
+      "categoria": "Elementari",
+      "sesso": "M",
+      "tempo": "00:00:13"
+    },
+    {
+      "nome": "Trampoli",
+      "categoria": "Medie",
+      "sesso": "F",
+      "tempo": "00:00:15"
+    },
+    {
+      "nome": "Trampoli",
+      "categoria": "Medie",
+      "sesso": "M",
+      "tempo": "00:00:14"
+    },
+    {
+      "nome": "Rulli",
+      "categoria": "Medie",
+      "sesso": "F",
+      "tempo": "00:00:52"
+    },
+    {
+      "nome": "Rulli",
+      "categoria": "Medie",
+      "sesso": "M",
+      "tempo": "00:00:50"
+    },
+    {
+      "nome": "Carriole",
+      "categoria": "Medie",
+      "sesso": "Altro",
+      "tempo": "00:01:26"
+    },
+    {
+      "nome": "Carriole",
+      "categoria": "Adolescenti",
+      "sesso": "Altro",
+      "tempo": "00:01:20"
+    },
+    {
+      "nome": "Carriole",
+      "categoria": "Adulti",
+      "sesso": "F",
+      "tempo": "00:01:30"
+    },
+    {
+      "nome": "Carriole",
+      "categoria": "Adulti",
+      "sesso": "M",
+      "tempo": "00:01:12"
+    }
+  ]
+}
