@@ -5,7 +5,22 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 DATABASE_FILE = "gare_database.json"
+TEMPI_GIOCO_FILE = "tempi_gioco.json"
+tempi_gioco = {}
+
 database = {}
+
+def carica_tempi_gioco():
+    global tempi_gioco
+    if os.path.exists(TEMPI_GIOCO_FILE):
+        with open(TEMPI_GIOCO_FILE, "r", encoding="utf-8") as f:
+            tempi_gioco.update(json.load(f))
+
+def salva_tempi_gioco():
+    with open(TEMPI_GIOCO_FILE, "w", encoding="utf-8") as f:
+        json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
+
+carica_tempi_gioco()
 
 def carica_database():
     global database
@@ -64,7 +79,7 @@ carica_database()
 
 st.title("Database Gare - Borgo Treponti")
 
-tab = st.tabs(["Inserisci Gara", "Visualizza Gare", "Statistiche", "Esporta"])
+tab = st.tabs(["Inserisci Gara", "Visualizza Gare", "Statistiche", "Esporta", "Tempi per Gioco"])
 
 with tab[0]:
     st.header("Inserisci Gara")
@@ -197,3 +212,45 @@ with tab[3]:
                 for gara in gare:
                     testo += f"{gara['nome']} | {gara['categoria']} | {gara['sesso']} | Tempo: {gara['tempo']}\n"
                 st.download_button(label="Scarica TXT", data=testo, file_name=f"gare_{anno_export}.txt", mime="text/plain")
+
+with tab[4]:
+    st.header("Tempi per Gioco")
+    nome_giocatore = st.text_input("Nome Giocatore")
+    gioco = st.text_input("Nome Gioco")
+    categoria_gioco = st.selectbox("Categoria", ["Materna", "Elementari", "Medie", "Adolescenti", "Adulti"], key="cat_gioco")
+    sesso_gioco = st.selectbox("Sesso", ["M", "F", "Altro"], key="sex_gioco")
+    tempo_gioco = st.text_input("Tempo (hh:mm:ss o mm:ss o ss)", key="tempo_gioco")
+
+    if st.button("Salva Tempo Gioco"):
+        if not (nome_giocatore and gioco and categoria_gioco and sesso_gioco and tempo_gioco):
+            st.error("Compila tutti i campi.")
+        elif not valida_tempo(tempo_gioco):
+            st.error("Formato tempo non valido.")
+        else:
+            if gioco not in tempi_gioco:
+                tempi_gioco[gioco] = []
+            nuova_entrata = {
+                "nome": nome_giocatore,
+                "categoria": categoria_gioco,
+                "sesso": sesso_gioco,
+                "tempo": tempo_gioco
+            }
+            tempi_gioco[gioco].append(nuova_entrata)
+            salva_tempi_gioco()
+            st.success("Tempo salvato!")
+
+    st.subheader("Tempi Migliori per Gioco")
+    if not tempi_gioco:
+        st.write("Nessun dato disponibile.")
+    else:
+        for gioco, entries in tempi_gioco.items():
+            st.markdown(f"### {gioco}")
+            gruppi = {}
+            for entry in entries:
+                key = (entry["categoria"], entry["sesso"])
+                sec = tempo_to_secondi(entry["tempo"])
+                if key not in gruppi or sec < gruppi[key][1]:
+                    gruppi[key] = (entry, sec)
+
+            for (categoria, sesso), (entry, sec) in gruppi.items():
+                st.write(f"- **{categoria} | {sesso}** → {entry['tempo']} ({entry['nome']})")
