@@ -13,24 +13,19 @@ database = {}
 
 def git_push(commit_message):
     try:
-        # Aggiunge solo il file JSON
         subprocess.run(["git", "add", TEMPI_FILE], check=True)
-
-        # Verifica se ci sono cambiamenti da commit
-        result = subprocess.run(["git", "diff", "--cached", "--quiet"])
-        # Se il comando sopra non produce errori, non ci sono modifiche da committare
-        # subprocess.run lancia CalledProcessError se ci sono differenze, quindi
-        # dobbiamo gestire l'eccezione:
-    except subprocess.CalledProcessError:
-        # Cambiamenti ci sono, quindi fai commit e push
-        try:
-            subprocess.run(["git", "commit", "-m", commit_message], check=True)
-            subprocess.run(["git", "push", "origin", "main"], check=True)  # Cambia "main" se serve
-            st.success("Modifiche salvate e push su Git eseguito con successo!")
-        except subprocess.CalledProcessError as e:
-            st.error(f"Errore durante commit/push Git: {e}")
-    else:
-        st.info("Nessuna modifica da salvare su Git.")
+        commit = subprocess.run(["git", "commit", "-m", commit_message], capture_output=True, text=True)
+        st.text(f"Commit output:\n{commit.stdout}")
+        st.text(f"Commit error:\n{commit.stderr}")
+        push = subprocess.run(["git", "push", "origin", "main"], capture_output=True, text=True)
+        st.text(f"Push output:\n{push.stdout}")
+        st.text(f"Push error:\n{push.stderr}")
+        if push.returncode == 0:
+            st.success("Push eseguito con successo!")
+        else:
+            st.error("Errore nel push!")
+    except subprocess.CalledProcessError as e:
+        st.error(f"Errore durante git push: {e}")
 
 def carica_tempi_gioco():
     global tempi_gioco
@@ -40,9 +35,9 @@ def carica_tempi_gioco():
             tempi_gioco.update({int(anno): giochi for anno, giochi in dati.items()})
 
 def salva_tempi_gioco():
-    st.write(f"Sto salvando in: {os.path.abspath(TEMPI_FILE)}")  # Qui
     with open(TEMPI_FILE, "w", encoding="utf-8") as f:
         json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
+    st.write(f"Salvato in: {os.path.abspath(TEMPI_FILE)}")
     git_push("Aggiornato tempi per gioco")
 
 import subprocess
