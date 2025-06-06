@@ -40,6 +40,7 @@ def carica_tempi_gioco():
             tempi_gioco.update({int(anno): giochi for anno, giochi in dati.items()})
 
 def salva_tempi_gioco():
+    st.write(f"Sto salvando in: {os.path.abspath(TEMPI_FILE)}")  # Qui
     with open(TEMPI_FILE, "w", encoding="utf-8") as f:
         json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
     git_push("Aggiornato tempi per gioco")
