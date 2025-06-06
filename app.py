@@ -45,6 +45,28 @@ def salva_tempi_gioco():
         json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
     git_push("Aggiornato tempi per gioco")
 
+import subprocess
+import streamlit as st
+
+def salva_tempi_gioco_e_git_push():
+    with open(TEMPI_FILE, "w", encoding="utf-8") as f:
+        json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
+    st.write(f"Salvato in: {os.path.abspath(TEMPI_FILE)}")
+
+    # Controlla lo stato git
+    result = subprocess.run(["git", "status", "--short"], capture_output=True, text=True)
+    st.text("Stato git dopo il salvataggio:")
+    st.text(result.stdout)
+
+    # Se ci sono modifiche, prova a fare commit e push
+    if result.stdout.strip():
+        os.system("git add .")
+        os.system('git commit -m "Aggiornato tempi per gioco"')
+        os.system("git push origin main")
+        st.success("Modifiche git pushate!")
+    else:
+        st.info("Nessuna modifica da salvare su Git.")
+
 carica_tempi_gioco()
 
 def carica_database():
@@ -267,7 +289,7 @@ with tab[4]:
                 "tempo": tempo_gioco
             }
             tempi_gioco[anno_gioco][gioco].append(nuova_entrata)
-            salva_tempi_gioco()
+            salva_tempi_gioco_e_git_push()
             st.success("Tempo salvato!")
 
     st.subheader("Tempi Migliori per Gioco")
@@ -316,7 +338,7 @@ with tab[4]:
                 # Rimuove l'anno se vuoto
                 if not tempi_gioco[anno_canc]:
                     del tempi_gioco[anno_canc]
-                salva_tempi_gioco()
+                salva_tempi_gioco_e_git_push()
                 st.success("Tempo cancellato.")
             else:
                 st.info("Tempo non trovato.")
