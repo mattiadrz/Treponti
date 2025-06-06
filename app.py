@@ -340,7 +340,7 @@ def main():
         # --- Sezione Visualizzazione minimi per ogni gioco e categoria in database2.db ---
         elif option_tab4 == "Visualizza Minimo per Gioco e Categoria":
             st.subheader("Visualizza Tempo Minimo per Gioco e Categoria")
-            filtro_anno = st.selectbox("Seleziona Anno (oppure 'Tutti')", options=["Tutti", "2025", "2024", "2023"], key="db2_filter_year")
+            filtro_anno = st.selectbox("Seleziona Anno (oppure 'Tutti')", options=["Tutti", "2031", "2030", "2029", "2028", "2027", "2026", "2025", "2024", "2023"], key="db2_filter_year")
             min_results = get_min_times(filtro_anno)
             if min_results:
                 df_min = pd.DataFrame(min_results, columns=["Gioco", "Categoria", "Tempo Minimo"])
