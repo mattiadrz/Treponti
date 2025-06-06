@@ -10,6 +10,10 @@ TEMPI_FILE = "tempi_gioco.json"
 tempi_gioco = {}
 database = {}
 
+def git_push(commit_message):
+    os.system("git add .")
+    os.system(f'git commit -m "{commit_message}"')
+    os.system("git push origin main")  # Cambia 'main' se il tuo branch ha un altro nome
 
 def carica_tempi_gioco():
     global tempi_gioco
@@ -21,6 +25,7 @@ def carica_tempi_gioco():
 def salva_tempi_gioco():
     with open(TEMPI_FILE, "w", encoding="utf-8") as f:
         json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
+    git_push("Aggiornato tempi per gioco")
 
 carica_tempi_gioco()
 
@@ -34,6 +39,7 @@ def carica_database():
 def salva_database():
     with open(DATABASE_FILE, "w", encoding="utf-8") as f:
         json.dump(database, f, indent=2, ensure_ascii=False)
+    git_push("Aggiornato database gare")
 
 def valida_tempo(tempo_str):
     parti = tempo_str.split(":")
