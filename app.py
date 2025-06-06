@@ -1,80 +1,39 @@
 import streamlit as st
-import json
-import os
+import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
-import subprocess
 
-DATABASE_FILE = "gare_database.json"
-TEMPI_FILE = "tempi_gioco.json"
+DB_FILE = "gare_tempi.db"
 
-tempi_gioco = {}
-database = {}
+# Connessione e setup DB
+conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+c = conn.cursor()
 
-def git_push(commit_message):
-    try:
-        subprocess.run(["git", "add", TEMPI_FILE], check=True)
-        commit = subprocess.run(["git", "commit", "-m", commit_message], capture_output=True, text=True)
-        st.text(f"Commit output:\n{commit.stdout}")
-        st.text(f"Commit error:\n{commit.stderr}")
-        push = subprocess.run(["git", "push", "origin", "main"], capture_output=True, text=True)
-        st.text(f"Push output:\n{push.stdout}")
-        st.text(f"Push error:\n{push.stderr}")
-        if push.returncode == 0:
-            st.success("Push eseguito con successo!")
-        else:
-            st.error("Errore nel push!")
-    except subprocess.CalledProcessError as e:
-        st.error(f"Errore durante git push: {e}")
+# Creazione tabelle se non esistono
+c.execute('''
+CREATE TABLE IF NOT EXISTS gare (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    anno INTEGER,
+    nome TEXT,
+    categoria TEXT,
+    sesso TEXT,
+    tempo TEXT
+)
+''')
 
-def carica_tempi_gioco():
-    global tempi_gioco
-    if os.path.exists(TEMPI_FILE):
-        with open(TEMPI_FILE, "r", encoding="utf-8") as f:
-            dati = json.load(f)
-            tempi_gioco.update({int(anno): giochi for anno, giochi in dati.items()})
+c.execute('''
+CREATE TABLE IF NOT EXISTS tempi_giochi (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    anno INTEGER,
+    gioco TEXT,
+    nome TEXT,
+    categoria TEXT,
+    sesso TEXT,
+    tempo TEXT
+)
+''')
 
-def salva_tempi_gioco():
-    with open(TEMPI_FILE, "w", encoding="utf-8") as f:
-        json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
-    st.write(f"Salvato in: {os.path.abspath(TEMPI_FILE)}")
-    git_push("Aggiornato tempi per gioco")
-
-import subprocess
-import streamlit as st
-
-def salva_tempi_gioco_e_git_push():
-    with open(TEMPI_FILE, "w", encoding="utf-8") as f:
-        json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
-    st.write(f"Salvato in: {os.path.abspath(TEMPI_FILE)}")
-
-    # Controlla lo stato git
-    result = subprocess.run(["git", "status", "--short"], capture_output=True, text=True)
-    st.text("Stato git dopo il salvataggio:")
-    st.text(result.stdout)
-
-    # Se ci sono modifiche, prova a fare commit e push
-    if result.stdout.strip():
-        os.system("git add .")
-        os.system('git commit -m "Aggiornato tempi per gioco"')
-        os.system("git push origin main")
-        st.success("Modifiche git pushate!")
-    else:
-        st.info("Nessuna modifica da salvare su Git.")
-
-carica_tempi_gioco()
-
-def carica_database():
-    global database
-    if os.path.exists(DATABASE_FILE):
-        with open(DATABASE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            database.update({int(k): v for k, v in data.items()})
-
-def salva_database():
-    with open(DATABASE_FILE, "w", encoding="utf-8") as f:
-        json.dump(database, f, indent=2, ensure_ascii=False)
-    git_push("Aggiornato database gare")
+conn.commit()
 
 def valida_tempo(tempo_str):
     parti = tempo_str.split(":")
@@ -109,16 +68,84 @@ def secondi_to_tempo(sec):
     else:
         return f"{m:02d}:{s:02d}"
 
-def filtra_e_ordina_gare(anno, filtro_nome):
-    if anno not in database:
-        return []
-    gare = database[anno]
-    if filtro_nome:
-        gare = [g for g in gare if filtro_nome.lower() in g["nome"].lower()]
-    gare = sorted(gare, key=lambda g: tempo_to_secondi(g["tempo"]))
-    return gare
+def aggiungi_gara(anno, nome, categoria, sesso, tempo):
+    # Controllo se già esiste gara con stesso nome, categoria, sesso e anno
+    c.execute('''
+    SELECT id, tempo FROM gare WHERE anno=? AND LOWER(nome)=LOWER(?) AND categoria=? AND sesso=?
+    ''', (anno, nome, categoria, sesso))
+    row = c.fetchone()
+    if row:
+        id_gara, tempo_esistente = row
+        if tempo_esistente == tempo:
+            return "esiste_uguale"
+        else:
+            # Sovrascrivi tempo
+            c.execute('UPDATE gare SET tempo=? WHERE id=?', (tempo, id_gara))
+            conn.commit()
+            return "sovrascritto"
+    else:
+        c.execute('INSERT INTO gare (anno, nome, categoria, sesso, tempo) VALUES (?, ?, ?, ?, ?)',
+                  (anno, nome, categoria, sesso, tempo))
+        conn.commit()
+        return "aggiunto"
 
-carica_database()
+def filtra_e_ordina_gare(anno, filtro_nome):
+    if filtro_nome:
+        c.execute('''
+        SELECT nome, categoria, sesso, tempo FROM gare WHERE anno=? AND LOWER(nome) LIKE ? ORDER BY tempo
+        ''', (anno, f'%{filtro_nome.lower()}%'))
+    else:
+        c.execute('''
+        SELECT nome, categoria, sesso, tempo FROM gare WHERE anno=? ORDER BY tempo
+        ''', (anno,))
+    risultati = c.fetchall()
+    return [{"nome": r[0], "categoria": r[1], "sesso": r[2], "tempo": r[3]} for r in risultati]
+
+def cancella_gara(anno, nome, categoria, sesso):
+    c.execute('''
+    DELETE FROM gare WHERE anno=? AND LOWER(nome)=LOWER(?) AND categoria=? AND sesso=?
+    ''', (anno, nome, categoria, sesso))
+    conn.commit()
+    return c.rowcount  # numero di righe cancellate
+
+def estrai_anni_presenti():
+    c.execute('SELECT DISTINCT anno FROM gare ORDER BY anno')
+    return [row[0] for row in c.fetchall()]
+
+def estrai_tutti_gare():
+    c.execute('SELECT anno, nome, categoria, sesso, tempo FROM gare')
+    return c.fetchall()
+
+def esporta_gare_anno(anno):
+    c.execute('SELECT nome, categoria, sesso, tempo FROM gare WHERE anno=?', (anno,))
+    return c.fetchall()
+
+# Funzioni gestione tempi_giochi
+def aggiungi_tempo_gioco(anno, gioco, nome, categoria, sesso, tempo):
+    c.execute('''
+    INSERT INTO tempi_giochi (anno, gioco, nome, categoria, sesso, tempo)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ''', (anno, gioco, nome, categoria, sesso, tempo))
+    conn.commit()
+
+def get_tempi_gioco_anno(anno):
+    c.execute('SELECT gioco, nome, categoria, sesso, tempo FROM tempi_giochi WHERE anno=?', (anno,))
+    rows = c.fetchall()
+    dati = {}
+    for gioco, nome, categoria, sesso, tempo in rows:
+        if gioco not in dati:
+            dati[gioco] = []
+        dati[gioco].append({"nome": nome, "categoria": categoria, "sesso": sesso, "tempo": tempo})
+    return dati
+
+def cancella_tempo_gioco(anno, gioco, categoria, sesso, nome):
+    c.execute('''
+    DELETE FROM tempi_giochi WHERE anno=? AND LOWER(gioco)=LOWER(?) AND categoria=? AND sesso=? AND LOWER(nome)=LOWER(?)
+    ''', (anno, gioco, categoria, sesso, nome))
+    conn.commit()
+    return c.rowcount
+
+### INTERFACCIA STREAMLIT ###
 
 st.title("Database Gare - Borgo Treponti")
 
@@ -138,25 +165,12 @@ with tab[0]:
         elif not valida_tempo(tempo):
             st.error("Formato tempo non valido. Usa hh:mm:ss o mm:ss o ss.")
         else:
-            if anno not in database:
-                database[anno] = []
-
-            esiste = False
-            for gara in database[anno]:
-                if gara["nome"].lower() == nome.lower() and gara["categoria"] == categoria and gara["sesso"] == sesso:
-                    esiste = True
-                    if gara["tempo"] == tempo:
-                        st.info("Gara già presente con lo stesso tempo!")
-                    else:
-                        if st.confirm("La gara esiste con tempo diverso. Sovrascrivere?"):
-                            gara["tempo"] = tempo
-                            salva_database()
-                            st.success("Tempo sovrascritto.")
-                    break
-            if not esiste:
-                nuova_gara = {"nome": nome, "categoria": categoria, "sesso": sesso, "tempo": tempo}
-                database[anno].append(nuova_gara)
-                salva_database()
+            risultato = aggiungi_gara(anno, nome, categoria, sesso, tempo)
+            if risultato == "esiste_uguale":
+                st.info("Gara già presente con lo stesso tempo!")
+            elif risultato == "sovrascritto":
+                st.success("Tempo sovrascritto.")
+            else:
                 st.success("Gara aggiunta!")
 
 with tab[1]:
@@ -182,27 +196,15 @@ with tab[1]:
         if not (nome_cancella and categoria_cancella and sesso_cancella):
             st.error("Compila tutti i campi per cancellare.")
         else:
-            if anno_stampa not in database:
-                st.info("Anno non presente nel database.")
+            count = cancella_gara(anno_stampa, nome_cancella, categoria_cancella, sesso_cancella)
+            if count > 0:
+                st.success("Gara cancellata.")
             else:
-                gare = database[anno_stampa]
-                gara_trovata = False
-                for i, gara in enumerate(gare):
-                    if gara["nome"].lower() == nome_cancella.lower() and gara["categoria"] == categoria_cancella and gara["sesso"] == sesso_cancella:
-                        del gare[i]
-                        gara_trovata = True
-                        break
-                if gara_trovata:
-                    if not database[anno_stampa]:
-                        del database[anno_stampa]
-                    salva_database()
-                    st.success("Gara cancellata.")
-                else:
-                    st.info("Gara non trovata.")
+                st.info("Gara non trovata.")
 
 with tab[2]:
     st.header("Statistiche")
-    anni = sorted(database.keys())
+    anni = estrai_anni_presenti()
     if not anni:
         st.write("Nessun dato presente.")
     else:
@@ -211,13 +213,13 @@ with tab[2]:
         tempi_secondi = []
 
         for anno in anni:
-            gare = database[anno]
+            c.execute('SELECT sesso, tempo FROM gare WHERE anno=?', (anno,))
+            gare = c.fetchall()
             totale_gare += len(gare)
-            for gara in gare:
-                sesso = gara["sesso"]
+            for sesso, tempo in gare:
                 if sesso in count_sesso:
                     count_sesso[sesso] += 1
-                tempi_secondi.append(tempo_to_secondi(gara["tempo"]))
+                tempi_secondi.append(tempo_to_secondi(tempo))
 
         media_sec = int(sum(tempi_secondi) / len(tempi_secondi)) if tempi_secondi else 0
         media_tempo = secondi_to_tempo(media_sec)
@@ -242,20 +244,19 @@ with tab[3]:
     formato = st.radio("Formato file", ("CSV", "TXT"))
 
     if st.button("Esporta"):
-        if anno_export not in database or not database[anno_export]:
+        gare = esporta_gare_anno(anno_export)
+        if not gare:
             st.info("Nessuna gara presente per l'anno selezionato.")
         else:
-            gare = database[anno_export]
             if formato == "CSV":
-                df = pd.DataFrame(gare)
+                df = pd.DataFrame([{"nome": g[0], "categoria": g[1], "sesso": g[2], "tempo": g[3]} for g in gare])
                 csv = df.to_csv(index=False)
                 st.download_button(label="Scarica CSV", data=csv, file_name=f"gare_{anno_export}.csv", mime="text/csv")
             else:
                 testo = f"Gare anno {anno_export}:\n\n"
-                for gara in gare:
-                    testo += f"{gara['nome']} | {gara['categoria']} | {gara['sesso']} | Tempo: {gara['tempo']}\n"
+                for g in gare:
+                    testo += f"{g[0]} | {g[1]} | {g[2]} | Tempo: {g[3]}\n"
                 st.download_button(label="Scarica TXT", data=testo, file_name=f"gare_{anno_export}.txt", mime="text/plain")
-
 with tab[4]:
     st.header("Tempi per Gioco")
 
@@ -272,68 +273,51 @@ with tab[4]:
         elif not valida_tempo(tempo_gioco):
             st.error("Formato tempo non valido.")
         else:
-            if anno_gioco not in tempi_gioco:
-                tempi_gioco[anno_gioco] = {}
-            if gioco not in tempi_gioco[anno_gioco]:
-                tempi_gioco[anno_gioco][gioco] = []
-
-            nuova_entrata = {
-                "nome": nome_giocatore,
-                "categoria": categoria_gioco,
-                "sesso": sesso_gioco,
-                "tempo": tempo_gioco
-            }
-            tempi_gioco[anno_gioco][gioco].append(nuova_entrata)
-            salva_tempi_gioco_e_git_push()
+            aggiungi_tempo_gioco(anno_gioco, gioco, nome_giocatore, categoria_gioco, sesso_gioco, tempo_gioco)
             st.success("Tempo salvato!")
 
-    st.subheader("Tempi Migliori per Gioco")
-    anno_vis = st.number_input("Seleziona Anno per Visualizzare", min_value=1900, max_value=2100, step=1, key="anno_vis_tempi")
+    st.markdown("---")
+    st.subheader("Modifica o Elimina Tempo Gioco")
 
-    if anno_vis not in tempi_gioco or not tempi_gioco[anno_vis]:
-        st.write("Nessun dato disponibile per l'anno selezionato.")
-    else:
-        for gioco, entries in tempi_gioco[anno_vis].items():
-            st.markdown(f"### {gioco}")
-            gruppi = {}
-            for entry in entries:
-                key = (entry["categoria"], entry["sesso"])
-                sec = tempo_to_secondi(entry["tempo"])
-                if key not in gruppi or sec < gruppi[key][1]:
-                    gruppi[key] = (entry, sec)
+    # Selezione record esistente da modificare/cancellare
+    anno_mod = st.number_input("Anno", min_value=1900, max_value=2100, step=1, key="anno_mod")
+    gioco_mod = st.text_input("Nome Gioco", key="gioco_mod")
+    nome_mod = st.text_input("Nome Giocatore", key="nome_mod")
+    categoria_mod = st.selectbox("Categoria", ["Materna", "Elementari", "Medie", "Adolescenti", "Adulti"], key="cat_mod")
+    sesso_mod = st.selectbox("Sesso", ["M", "F", "Altro"], key="sex_mod")
 
-            for (categoria, sesso), (entry, _) in gruppi.items():
-                st.write(f"- **{categoria} | {sesso}** → {entry['tempo']} ({entry['nome']})")
-
-        st.subheader("Cancella Tempo per Gioco")
-
-    anno_canc = st.number_input("Anno", min_value=1900, max_value=2100, step=1, key="anno_canc")
-    gioco_canc = st.text_input("Nome Gioco", key="gioco_canc")
-    categoria_canc = st.selectbox("Categoria", ["Materna", "Elementari", "Medie", "Adolescenti", "Adulti"], key="cat_canc_gioco")
-    sesso_canc = st.selectbox("Sesso", ["M", "F", "Altro"], key="sex_canc_gioco")
-    nome_canc = st.text_input("Nome Giocatore", key="nome_canc_gioco")
-
-    if st.button("Cancella Tempo Gioco"):
-        if not (gioco_canc and categoria_canc and sesso_canc and nome_canc):
-            st.error("Compila tutti i campi per cancellare.")
-        elif anno_canc not in tempi_gioco or gioco_canc not in tempi_gioco[anno_canc]:
-            st.info("Anno o gioco non trovato.")
+    if st.button("Carica Tempo Esistente"):
+        c.execute('''
+        SELECT tempo FROM tempi_giochi
+        WHERE anno=? AND LOWER(gioco)=LOWER(?) AND LOWER(nome)=LOWER(?) AND categoria=? AND sesso=?
+        ''', (anno_mod, gioco_mod, nome_mod, categoria_mod, sesso_mod))
+        row = c.fetchone()
+        if row:
+            tempo_esistente = row[0]
+            st.session_state["tempo_mod"] = tempo_esistente
+            st.success(f"Tempo esistente caricato: {tempo_esistente}")
         else:
-            entries = tempi_gioco[anno_canc][gioco_canc]
-            nuova_lista = [e for e in entries if not (
-                e["nome"].lower() == nome_canc.lower() and 
-                e["categoria"] == categoria_canc and 
-                e["sesso"] == sesso_canc)]
+            st.error("Record non trovato.")
 
-            if len(nuova_lista) < len(entries):
-                tempi_gioco[anno_canc][gioco_canc] = nuova_lista
-                # Rimuove il gioco se vuoto
-                if not tempi_gioco[anno_canc][gioco_canc]:
-                    del tempi_gioco[anno_canc][gioco_canc]
-                # Rimuove l'anno se vuoto
-                if not tempi_gioco[anno_canc]:
-                    del tempi_gioco[anno_canc]
-                salva_tempi_gioco_e_git_push()
-                st.success("Tempo cancellato.")
+    tempo_mod = st.text_input("Nuovo Tempo", key="tempo_mod", value=st.session_state.get("tempo_mod", ""))
+
+    if st.button("Modifica Tempo"):
+        if not tempo_mod:
+            st.error("Inserisci un nuovo tempo.")
+        elif not valida_tempo(tempo_mod):
+            st.error("Formato tempo non valido.")
+        else:
+            rows_updated = modifica_tempo_gioco(anno_mod, gioco_mod, nome_mod, categoria_mod, sesso_mod, tempo_mod)
+            if rows_updated > 0:
+                st.success("Tempo modificato con successo.")
+                st.session_state["tempo_mod"] = tempo_mod
             else:
-                st.info("Tempo non trovato.")
+                st.error("Errore: record non trovato o nessuna modifica effettuata.")
+
+    if st.button("Elimina Tempo"):
+        rows_deleted = cancella_tempo_gioco(anno_mod, gioco_mod, categoria_mod, sesso_mod, nome_mod)
+        if rows_deleted > 0:
+            st.success("Record eliminato con successo.")
+            st.session_state["tempo_mod"] = ""
+        else:
+            st.error("Errore: record non trovato.")
