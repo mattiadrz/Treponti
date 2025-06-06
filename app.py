@@ -263,3 +263,36 @@ with tab[4]:
 
             for (categoria, sesso), (entry, _) in gruppi.items():
                 st.write(f"- **{categoria} | {sesso}** → {entry['tempo']} ({entry['nome']})")
+
+        st.subheader("Cancella Tempo per Gioco")
+
+    anno_canc = st.number_input("Anno", min_value=1900, max_value=2100, step=1, key="anno_canc")
+    gioco_canc = st.text_input("Nome Gioco", key="gioco_canc")
+    categoria_canc = st.selectbox("Categoria", ["Materna", "Elementari", "Medie", "Adolescenti", "Adulti"], key="cat_canc_gioco")
+    sesso_canc = st.selectbox("Sesso", ["M", "F", "Altro"], key="sex_canc_gioco")
+    nome_canc = st.text_input("Nome Giocatore", key="nome_canc_gioco")
+
+    if st.button("Cancella Tempo Gioco"):
+        if not (gioco_canc and categoria_canc and sesso_canc and nome_canc):
+            st.error("Compila tutti i campi per cancellare.")
+        elif anno_canc not in tempi_gioco or gioco_canc not in tempi_gioco[anno_canc]:
+            st.info("Anno o gioco non trovato.")
+        else:
+            entries = tempi_gioco[anno_canc][gioco_canc]
+            nuova_lista = [e for e in entries if not (
+                e["nome"].lower() == nome_canc.lower() and 
+                e["categoria"] == categoria_canc and 
+                e["sesso"] == sesso_canc)]
+
+            if len(nuova_lista) < len(entries):
+                tempi_gioco[anno_canc][gioco_canc] = nuova_lista
+                # Rimuove il gioco se vuoto
+                if not tempi_gioco[anno_canc][gioco_canc]:
+                    del tempi_gioco[anno_canc][gioco_canc]
+                # Rimuove l'anno se vuoto
+                if not tempi_gioco[anno_canc]:
+                    del tempi_gioco[anno_canc]
+                salva_tempi_gioco()
+                st.success("Tempo cancellato.")
+            else:
+                st.info("Tempo non trovato.")
