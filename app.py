@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import subprocess
 
 DATABASE_FILE = "gare_database.json"
 TEMPI_FILE = "tempi_gioco.json"
@@ -11,9 +12,25 @@ tempi_gioco = {}
 database = {}
 
 def git_push(commit_message):
-    os.system("git add .")
-    os.system(f'git commit -m "{commit_message}"')
-    os.system("git push origin main")  # Cambia 'main' se il tuo branch ha un altro nome
+    try:
+        # Aggiunge solo il file JSON
+        subprocess.run(["git", "add", TEMPI_FILE], check=True)
+
+        # Verifica se ci sono cambiamenti da commit
+        result = subprocess.run(["git", "diff", "--cached", "--quiet"])
+        # Se il comando sopra non produce errori, non ci sono modifiche da committare
+        # subprocess.run lancia CalledProcessError se ci sono differenze, quindi
+        # dobbiamo gestire l'eccezione:
+    except subprocess.CalledProcessError:
+        # Cambiamenti ci sono, quindi fai commit e push
+        try:
+            subprocess.run(["git", "commit", "-m", commit_message], check=True)
+            subprocess.run(["git", "push", "origin", "main"], check=True)  # Cambia "main" se serve
+            st.success("Modifiche salvate e push su Git eseguito con successo!")
+        except subprocess.CalledProcessError as e:
+            st.error(f"Errore durante commit/push Git: {e}")
+    else:
+        st.info("Nessuna modifica da salvare su Git.")
 
 def carica_tempi_gioco():
     global tempi_gioco
