@@ -5,19 +5,21 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 DATABASE_FILE = "gare_database.json"
-TEMPI_GIOCO_FILE = "tempi_gioco.json"
-tempi_gioco = {}
+TEMPI_FILE = "tempi_gioco.json"
 
+tempi_gioco = {}
 database = {}
+
 
 def carica_tempi_gioco():
     global tempi_gioco
-    if os.path.exists(TEMPI_GIOCO_FILE):
-        with open(TEMPI_GIOCO_FILE, "r", encoding="utf-8") as f:
-            tempi_gioco.update(json.load(f))
+    if os.path.exists(TEMPI_FILE):
+        with open(TEMPI_FILE, "r", encoding="utf-8") as f:
+            dati = json.load(f)
+            tempi_gioco.update({int(anno): giochi for anno, giochi in dati.items()})
 
 def salva_tempi_gioco():
-    with open(TEMPI_GIOCO_FILE, "w", encoding="utf-8") as f:
+    with open(TEMPI_FILE, "w", encoding="utf-8") as f:
         json.dump(tempi_gioco, f, indent=2, ensure_ascii=False)
 
 carica_tempi_gioco()
@@ -215,6 +217,8 @@ with tab[3]:
 
 with tab[4]:
     st.header("Tempi per Gioco")
+
+    anno_gioco = st.number_input("Anno", min_value=1900, max_value=2100, step=1, key="anno_gioco")
     nome_giocatore = st.text_input("Nome Giocatore")
     gioco = st.text_input("Nome Gioco")
     categoria_gioco = st.selectbox("Categoria", ["Materna", "Elementari", "Medie", "Adolescenti", "Adulti"], key="cat_gioco")
@@ -227,23 +231,28 @@ with tab[4]:
         elif not valida_tempo(tempo_gioco):
             st.error("Formato tempo non valido.")
         else:
-            if gioco not in tempi_gioco:
-                tempi_gioco[gioco] = []
+            if anno_gioco not in tempi_gioco:
+                tempi_gioco[anno_gioco] = {}
+            if gioco not in tempi_gioco[anno_gioco]:
+                tempi_gioco[anno_gioco][gioco] = []
+
             nuova_entrata = {
                 "nome": nome_giocatore,
                 "categoria": categoria_gioco,
                 "sesso": sesso_gioco,
                 "tempo": tempo_gioco
             }
-            tempi_gioco[gioco].append(nuova_entrata)
+            tempi_gioco[anno_gioco][gioco].append(nuova_entrata)
             salva_tempi_gioco()
             st.success("Tempo salvato!")
 
     st.subheader("Tempi Migliori per Gioco")
-    if not tempi_gioco:
-        st.write("Nessun dato disponibile.")
+    anno_vis = st.number_input("Seleziona Anno per Visualizzare", min_value=1900, max_value=2100, step=1, key="anno_vis_tempi")
+
+    if anno_vis not in tempi_gioco or not tempi_gioco[anno_vis]:
+        st.write("Nessun dato disponibile per l'anno selezionato.")
     else:
-        for gioco, entries in tempi_gioco.items():
+        for gioco, entries in tempi_gioco[anno_vis].items():
             st.markdown(f"### {gioco}")
             gruppi = {}
             for entry in entries:
@@ -252,5 +261,5 @@ with tab[4]:
                 if key not in gruppi or sec < gruppi[key][1]:
                     gruppi[key] = (entry, sec)
 
-            for (categoria, sesso), (entry, sec) in gruppi.items():
+            for (categoria, sesso), (entry, _) in gruppi.items():
                 st.write(f"- **{categoria} | {sesso}** → {entry['tempo']} ({entry['nome']})")
